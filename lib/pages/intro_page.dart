@@ -48,7 +48,7 @@ class IntroPage extends StatelessWidget {
               padding: const EdgeInsets.all(20.0),
               child: MyButton(
                 onTap: () {
-                  Navigator.pushNamed(context, '/shop');
+                  Navigator.pushNamed(context, '/home');
                 }, 
                 child: Icon(Icons.arrow_forward)
                 ),

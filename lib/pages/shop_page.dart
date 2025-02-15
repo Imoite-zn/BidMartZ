@@ -1,4 +1,4 @@
-import 'package:ecomm_site/components/my_drawer.dart';
+// ignore_for_file: unused_local_variable
 import 'package:ecomm_site/components/product_tile.dart';
 import 'package:ecomm_site/models/shop.dart';
 import 'package:flutter/material.dart';
@@ -12,33 +12,8 @@ class ShopPage extends StatelessWidget {
 
     //access products in shop
     final products = context.watch<Shop>().shop;
+
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation:0,
-        foregroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Padding(
-          padding: const EdgeInsets.all(10.0),
-          child: Center(
-            child: const Text(
-              'Senkee Shop',
-              style: TextStyle(
-                fontSize: 20, 
-                fontWeight: FontWeight.bold),
-              )),
-        ),
-        actions: [
-          //go to cart page
-          IconButton(
-            onPressed: () => Navigator.pushNamed(context, '/cart'),
-            icon: const Icon(
-              Icons.shopping_cart_outlined,
-              size: 30,
-              )
-            ),
-        ],
-      ),
-      drawer: const MyDrawer(),
       backgroundColor: Theme.of(context).colorScheme.surface,
       body: ListView(
         children: [
@@ -70,7 +45,7 @@ class ShopPage extends StatelessWidget {
           ),
 
         ],
-      )
+      ),
     );
   }
 }
