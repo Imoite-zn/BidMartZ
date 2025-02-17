@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
-class LiveAuctionPage extends StatelessWidget {
-  const LiveAuctionPage({super.key});
+class MyWidget extends StatelessWidget {
+  const MyWidget({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Text('auctions'),
+      body: Text('sign in page'),
     );
   }
 }

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 class ProductTile extends StatelessWidget {
-  final ProductA product;
+  final BuyNowProduct product;
 
   const ProductTile({
     super.key,

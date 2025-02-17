@@ -2,13 +2,13 @@
 
 import 'package:ecomm_site/components/bottom_nav_bar.dart';
 import 'package:ecomm_site/components/my_drawer.dart';
-import 'package:ecomm_site/models/shop.dart';
 import 'package:ecomm_site/pages/buy_now_page.dart';
 import 'package:ecomm_site/pages/live_auction_page.dart';
+import 'package:ecomm_site/pages/post_auction_page.dart';
 import 'package:ecomm_site/pages/post_product_page.dart';
+// import 'package:ecomm_site/pages/post_product_page.dart';
 import 'package:ecomm_site/pages/shop_page.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -34,7 +34,8 @@ class _HomePageState extends State<HomePage> {
       const ShopPage(),
       const LiveAuctionPage(),
       const BuyNowPage(),
-      const PostProductPage(),
+      PostProductPage(),
+      // PostAuctionPage(),
     ];
 
   @override

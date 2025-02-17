@@ -9,7 +9,7 @@ class CartPage extends StatelessWidget {
   const CartPage({super.key});
 
   //remove item from cart
-  void removeItemFromCart(BuildContext context, ProductA product) {
+  void removeItemFromCart(BuildContext context, BuyNowProduct product) {
       showDialog(
         context: context, 
         builder: (context) => AlertDialog(
