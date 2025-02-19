@@ -6,7 +6,14 @@ class ProfilePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Text('profile'),
+      appBar: AppBar(
+        centerTitle: true,
+        title:  Text(
+          'My Profile',
+          style: TextStyle(color: Theme.of(context).colorScheme.primary, fontSize: 20),
+          ),
+        ),
     );
+    // Navigator.pop(context);
   }
 }

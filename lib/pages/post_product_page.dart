@@ -101,32 +101,74 @@ Future<void> _saveProduct(BuyNowProduct product) async {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Column(
+        // mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          TextField(
-            controller: _textNameController,
-            decoration: InputDecoration(
-              label: Text('Name'),
-            ),
-          ),
-          TextField(
-            controller: _textDescriptionController,
-            decoration: InputDecoration(
-              label: Text('Description'),
-            ),
-          ),
-          TextField(
-            controller: _textPriceController,
-            decoration: InputDecoration(
-              label: Text('Price'),
-            ),
-          ),
+              Container(
+                padding: EdgeInsets.all(16),
+                margin: EdgeInsets.only(top:40, left: 10, right: 10),
+                decoration: BoxDecoration(
+                  color: Colors.blueGrey.shade300
+                ),
+                child: Column(
+                      children: [
+                        TextField(
+                    controller: _textNameController,
+                    decoration: InputDecoration(
+                      label: Text('Name'),
+                    ),
+                  ),
+
+                  const SizedBox(height: 10,),
+
+                  TextField(
+                    controller: _textDescriptionController,
+                    decoration: InputDecoration(
+                      label: Text('Description'),
+                    ),
+                  ),
+
+                  const SizedBox(height: 10,),
+                  
+                  TextField(
+                    controller: _textPriceController,
+                    decoration: InputDecoration(
+                      label: Text('Price'),
+                    ),
+              ),
+                      ]
+              ),
+              ),
+                  
+            const SizedBox(height: 10,),
+
           ElevatedButton(
+            // style: ButtonStyle(
+
+            // ),
             onPressed: _pickImage,
-            child: Text('Select Image'),
+            child: Column(
+              children: [
+                Padding(padding: EdgeInsets.all(10)),
+                Icon(
+                  Icons.add_a_photo_rounded,
+                  size: 40,
+                  ),
+                Text(
+                  'Select Image',
+                  style: TextStyle(
+                    fontSize: 16,
+                  ),
+                  ),
+              ],
+            ),
           ),
           _image != null
-              ? Image.file(_image!)
+              ? Image.asset(_image!.toString())
               : Text('No image selected'),
+
+              const SizedBox(height: 20,),
+
           ElevatedButton(
             onPressed: _addProduct,
             child: Text('Add Product'),

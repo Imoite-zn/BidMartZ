@@ -78,8 +78,8 @@ class ProductTile extends StatelessWidget {
                 color: Theme.of(context).colorScheme.secondary
               ),
               width: double.infinity,
-              child: Image.asset(product.imagePath),
               padding: EdgeInsets.all(25),
+              child: Image.asset(product.imagePath),
               ),
           ),
 
