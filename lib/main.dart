@@ -11,8 +11,17 @@ import 'package:ecomm_site/pages/profile_page.dart';
 import 'package:ecomm_site/pages/shop_page.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:ecomm_site/.env';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  await Supabase.initialize(
+    url: SUPABASE_URL,
+    anonKey: SUPABASE_ANON_KEY,
+  );
+  
   runApp(ChangeNotifierProvider(
     create: (context) => Shop(),
     child: const MyApp())

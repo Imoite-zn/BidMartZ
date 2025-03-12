@@ -5,6 +5,8 @@ import 'package:ecomm_site/components/buttton.dart';
 import 'package:ecomm_site/models/auction_product.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'dart:convert';
 
 // Modify the PostProductPage widget to include the auction timer
 class PostAuctionPage extends StatefulWidget {
@@ -22,6 +24,7 @@ class _PostAuctionPageState extends State<PostAuctionPage> {
   final _textAuctionDurationController = TextEditingController();
   Timer? _auctionTimer;
   int _remainingTime = 0;
+  final supabase = Supabase.instance.client;
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
@@ -47,31 +50,116 @@ class _PostAuctionPageState extends State<PostAuctionPage> {
     }
   }
 
-  void _addAuctionProduct() {
+  Future<String?> _uploadImageToSupabase(File imageFile) async {
+    try {
+      final fileExtension = imageFile.path.split('.').last;
+      final fileName = '${DateTime.now().toIso8601String()}.$fileExtension';
+      final filePath = 'auction_images/$fileName';
+
+      // Upload the file to Supabase Storage
+      final response = await supabase
+          .storage
+          .from('auction_images')
+          .upload(filePath, imageFile);
+
+      // Get the public URL of the uploaded image
+      final imageUrl = supabase
+          .storage
+          .from('auction_images')
+          .getPublicUrl(filePath);
+
+      return imageUrl;
+    } catch (error) {
+      print('Error uploading image: $error');
+      return null;
+    }
+  }
+
+  Future<void> _addAuctionProduct() async {
     if (_textNameController.text.isNotEmpty &&
         _textDescriptionController.text.isNotEmpty &&
         _textPriceController.text.isNotEmpty &&
         _textAuctionDurationController.text.isNotEmpty &&
         _image != null) {
-      final auctionProduct = AuctionProduct(
-        name: _textNameController.text,
-        description: _textDescriptionController.text,
-        price: int.parse(_textPriceController.text),
-        image: _image!,
-        auctionDuration: int.parse(_textAuctionDurationController.text),
-      );
-      
-      setState(() {
-        _auctionProducts.add(auctionProduct);
-        _remainingTime = auctionProduct.auctionDuration;
-        _image = null;
-        _textNameController.clear();
-        _textDescriptionController.clear();
-        _textPriceController.clear();
-        _textAuctionDurationController.clear();
-      });
-      
-      _startAuctionTimer();
+      try {
+        // Show loading indicator
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return Center(child: CircularProgressIndicator());
+          },
+        );
+
+        // Upload image to Supabase Storage
+        final imageUrl = await _uploadImageToSupabase(_image!);
+        
+        if (imageUrl == null) {
+          Navigator.pop(context); // Dismiss loading indicator
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to upload image')),
+          );
+          return;
+        }
+
+        final auctionProduct = AuctionProduct(
+          name: _textNameController.text,
+          description: _textDescriptionController.text,
+          price: int.parse(_textPriceController.text),
+          image: _image!,
+          auctionDuration: int.parse(_textAuctionDurationController.text),
+        );
+
+        // Calculate end time
+        final endTime = DateTime.now().add(
+          Duration(seconds: int.parse(_textAuctionDurationController.text))
+        );
+        
+        // Insert auction into Supabase database
+        final response = await supabase
+            .from('auctions')
+            .insert({
+              'name': _textNameController.text,
+              'description': _textDescriptionController.text,
+              'starting_price': int.parse(_textPriceController.text),
+              'current_price': int.parse(_textPriceController.text),
+              'image_url': imageUrl, // Store the image URL instead of base64
+              'duration': int.parse(_textAuctionDurationController.text),
+              'end_time': endTime.toIso8601String(),
+              'status': 'active',
+              'created_at': DateTime.now().toIso8601String(),
+            })
+            .select()
+            .single();
+
+        // Dismiss loading indicator
+        Navigator.pop(context);
+        
+        setState(() {
+          _auctionProducts.add(auctionProduct);
+          _remainingTime = auctionProduct.auctionDuration;
+          _image = null;
+          _textNameController.clear();
+          _textDescriptionController.clear();
+          _textPriceController.clear();
+          _textAuctionDurationController.clear();
+        });
+        
+        _startAuctionTimer();
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Auction created successfully!')),
+        );
+      } catch (error) {
+        // Dismiss loading indicator if still showing
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error creating auction: $error')),
+        );
+      }
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Please fill in all fields and select an image')),
@@ -89,12 +177,25 @@ class _PostAuctionPageState extends State<PostAuctionPage> {
             _remainingTime--;
           } else {
             _auctionTimer?.cancel();
+            _updateAuctionStatus();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Auction has ended!')),
             );
           }
         });
       });
+    }
+  }
+
+  Future<void> _updateAuctionStatus() async {
+    try {
+      // Update the auction status to 'ended' in Supabase
+      await supabase
+          .from('auctions')
+          .update({'status': 'ended'})
+          .eq('id', _auctionProducts.last.id); // You'll need to add 'id' to your AuctionProduct model
+    } catch (error) {
+      print('Error updating auction status: $error');
     }
   }
 
