@@ -51,41 +51,61 @@ class _PostAuctionPageState extends State<PostAuctionPage> {
     if (_textNameController.text.isNotEmpty &&
         _textDescriptionController.text.isNotEmpty &&
         _textPriceController.text.isNotEmpty &&
-        _textAuctionDurationController.text.isNotEmpty) {
+        _textAuctionDurationController.text.isNotEmpty &&
+        _image != null) {
+      final auctionProduct = AuctionProduct(
+        name: _textNameController.text,
+        description: _textDescriptionController.text,
+        price: int.parse(_textPriceController.text),
+        image: _image!,
+        auctionDuration: int.parse(_textAuctionDurationController.text),
+      );
+      
       setState(() {
-        _auctionProducts.add(AuctionProduct(
-          name: _textNameController.text,
-          description: _textDescriptionController.text,
-          price: int.parse(_textPriceController.text),
-          image: _image!,
-          auctionDuration: int.parse(_textAuctionDurationController.text),
-        ));
+        _auctionProducts.add(auctionProduct);
+        _remainingTime = auctionProduct.auctionDuration;
+        _image = null;
         _textNameController.clear();
         _textDescriptionController.clear();
         _textPriceController.clear();
         _textAuctionDurationController.clear();
       });
+      
+      _startAuctionTimer();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please fill in all fields')),
+        SnackBar(content: Text('Please fill in all fields and select an image')),
       );
     }
   }
 
   void _startAuctionTimer() {
+    _auctionTimer?.cancel();
+    
     if (_auctionProducts.isNotEmpty) {
-      setState(() {
-        _remainingTime = _auctionProducts.last.auctionDuration;
-      });
       _auctionTimer = Timer.periodic(Duration(seconds: 1), (timer) {
         setState(() {
-          _remainingTime--;
-          if (_remainingTime <= 0) {
+          if (_remainingTime > 0) {
+            _remainingTime--;
+          } else {
             _auctionTimer?.cancel();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Auction has ended!')),
+            );
           }
         });
       });
     }
+  }
+
+  @override
+  void dispose() {
+    _auctionTimer?.cancel();
+    _textNameController.dispose();
+    _textDescriptionController.dispose();
+    _textPriceController.dispose();
+    _textAuctionDurationController.dispose();
+    super.dispose();
   }
 
   @override
