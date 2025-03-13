@@ -24,3 +24,13 @@ create policy "Auction images are publicly accessible"
 create policy "Users can upload auction images"
   on storage.objects for insert
   using ( bucket_id = 'auction_images' );
+
+-- Allow insert access to auctions table
+create policy "Anyone can insert auctions"
+on auctions for insert
+with check (true);
+
+-- Allow read access to auctions
+create policy "Anyone can view auctions"
+on auctions for select
+using (true);

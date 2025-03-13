@@ -6,7 +6,6 @@ import 'package:ecomm_site/pages/buy_now_page.dart';
 import 'package:ecomm_site/pages/live_auction_page.dart';
 import 'package:ecomm_site/pages/post_auction_page.dart';
 import 'package:ecomm_site/pages/post_product_page.dart';
-// import 'package:ecomm_site/pages/post_product_page.dart';
 import 'package:ecomm_site/pages/shop_page.dart';
 import 'package:flutter/material.dart';
 
@@ -34,8 +33,8 @@ class _HomePageState extends State<HomePage> {
       const ShopPage(),
       const LiveAuctionPage(),
       const BuyNowPage(),
-      PostProductPage(),
-      // PostAuctionPage(),
+      // PostProductPage(),
+      PostAuctionPage(),
     ];
 
   @override
