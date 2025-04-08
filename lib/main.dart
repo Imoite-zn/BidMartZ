@@ -13,6 +13,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:ecomm_site/auth/auth_provider.dart';
+import 'package:ecomm_site/pages/auth/login_page.dart';
+import 'package:ecomm_site/pages/auth/signup_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,9 +29,14 @@ void main() async {
     anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
   );
   
-  runApp(ChangeNotifierProvider(
-    create: (context) => Shop(),
-    child: const MyApp())
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => Shop()),
+      ],
+      child: const MyApp(),
+    ),
   );
 }
 
@@ -41,7 +49,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       home: IntroPage(),
+      initialRoute: '/login',
       routes:{
+        '/login': (context) => LoginPage(),
+        '/signup': (context) => SignUpPage(),
         '/intro': (context) => const IntroPage(),
         '/home': (context) => const HomePage(),
         '/profile': (context) => const ProfilePage(),

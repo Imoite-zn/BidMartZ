@@ -6,25 +6,29 @@ import 'package:ecomm_site/models/auction_product.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:ecomm_site/auth/auth_state.dart';
+import 'dart:ui' as ui;
 // import 'dart:convert';
 // import 'package:image/image.dart' as img;
 // import 'package:path_provider/path_provider.dart';
 
 // Modify the PostProductPage widget to include the auction timer
 class PostAuctionPage extends StatefulWidget {
+  const PostAuctionPage({super.key});
+
   @override
   _PostAuctionPageState createState() => _PostAuctionPageState();
 }
 
-class _PostAuctionPageState extends State<PostAuctionPage> {
-  File? _image;
-  String _result = '';
-  List<AuctionProduct> _auctionProducts = [];
+class _PostAuctionPageState extends State<PostAuctionPage> with AuthStateMixin {
   final _textNameController = TextEditingController();
   final _textDescriptionController = TextEditingController();
   final _textPriceController = TextEditingController();
   final _textAuctionDurationController = TextEditingController();
-  Timer? _auctionTimer;
+  File? _image;
+  String _result = '';
+  List<AuctionProduct> _auctionProducts = [];
+  Timer? _timer;
   int _remainingTime = 0;
   final supabase = Supabase.instance.client;
 
@@ -301,15 +305,15 @@ class _PostAuctionPageState extends State<PostAuctionPage> {
   }
 
   void _startAuctionTimer() {
-    _auctionTimer?.cancel();
+    _timer?.cancel();
     
     if (_auctionProducts.isNotEmpty) {
-      _auctionTimer = Timer.periodic(Duration(seconds: 1), (timer) {
+      _timer = Timer.periodic(Duration(seconds: 1), (timer) {
         setState(() {
           if (_remainingTime > 0) {
             _remainingTime--;
           } else {
-            _auctionTimer?.cancel();
+            _timer?.cancel();
             _updateAuctionStatus();
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(content: Text('Auction has ended!')),
@@ -335,7 +339,7 @@ class _PostAuctionPageState extends State<PostAuctionPage> {
 
   @override
   void dispose() {
-    _auctionTimer?.cancel();
+    _timer?.cancel();
     _textNameController.dispose();
     _textDescriptionController.dispose();
     _textPriceController.dispose();
