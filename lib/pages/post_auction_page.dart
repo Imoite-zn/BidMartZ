@@ -83,16 +83,32 @@ class _PostAuctionPageState extends State<PostAuctionPage> with AuthStateMixin {
         );
 
         final File imageFile = File(pickedFile.path);
-        
+
+        // Hide loading indicator *before* async gap for check/setState
+        Navigator.pop(context); 
+
+        // Check if square (Optional - Consider removing if not essential)
+        final bool isSquare = await _checkIfSquare(imageFile);
+        if (!isSquare && mounted) {
+           // Show dialog correctly *outside* setState
+           showDialog(
+             context: context,
+             builder: (context) => AlertDialog(
+               title: Text('Image Not Square'),
+               content: Text('The selected image is not square. Please choose a square image.'),
+               actions: [
+                 TextButton(onPressed: () => Navigator.pop(context), child: Text('OK')),
+               ],
+             ),
+           );
+           return; // Stop processing if not square and check is enforced
+        }
+
         setState(() {
           _image = imageFile;
+          _result = ''; // Clear previous results/errors if needed
         });
-        
-        // Hide loading indicator
-        Navigator.pop(context);
-        
-        // Check if square
-        _checkIfSquare(_image!);
+
       }
     } catch (error) {
       // Hide loading indicator if showing
@@ -100,20 +116,18 @@ class _PostAuctionPageState extends State<PostAuctionPage> with AuthStateMixin {
         Navigator.pop(context);
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error picking image: $error')),
+        SnackBar(content: Text('Error picking image: ${error.toString()}')),
       );
     }
   }
 
-  Future<void> _checkIfSquare(File image) async {
-    final decodedImage = await decodeImageFromList(image.readAsBytesSync());
-    if (decodedImage.width != decodedImage.height) {
-      setState(() {
-        AlertDialog(
-          title: Text('Image is not square'),
-        );
-        _result = 'The image is not square';
-      });
+  Future<bool> _checkIfSquare(File image) async {
+    try {
+       final decodedImage = await decodeImageFromList(image.readAsBytesSync());
+       return decodedImage.width == decodedImage.height;
+    } catch (e) {
+       print("Error checking image dimensions: $e");
+       return false; // Assume not square or error occurred
     }
   }
 
@@ -201,10 +215,19 @@ class _PostAuctionPageState extends State<PostAuctionPage> with AuthStateMixin {
   }
 
   Future<void> _addAuctionProduct() async {
-    if (_textNameController.text.isNotEmpty &&
-        _textDescriptionController.text.isNotEmpty &&
-        _textPriceController.text.isNotEmpty &&
-        _textAuctionDurationController.text.isNotEmpty &&
+    final name = _textNameController.text;
+    final description = _textDescriptionController.text;
+    final priceString = _textPriceController.text;
+    final durationString = _textAuctionDurationController.text;
+
+    // Improved Input Validation
+    final startingPrice = int.tryParse(priceString);
+    final durationSeconds = int.tryParse(durationString);
+
+    if (name.isNotEmpty &&
+        description.isNotEmpty &&
+        startingPrice != null && // Check parsed value
+        durationSeconds != null && // Check parsed value
         _image != null) {
       try {
         // Show loading indicator
@@ -218,11 +241,11 @@ class _PostAuctionPageState extends State<PostAuctionPage> with AuthStateMixin {
 
         // Upload image to Supabase Storage
         final imageUrl = await _uploadImageToSupabase(_image!);
-        
+
         if (imageUrl == null) {
           Navigator.pop(context); // Dismiss loading indicator
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to upload image')),
+            SnackBar(content: Text('Image upload failed. Please try again.')),
           );
           return;
         }
@@ -231,57 +254,63 @@ class _PostAuctionPageState extends State<PostAuctionPage> with AuthStateMixin {
 
         // Calculate end time
         final endTime = DateTime.now().add(
-          Duration(seconds: int.parse(_textAuctionDurationController.text))
+          Duration(seconds: durationSeconds) // Use parsed value
         );
-        
+
         // Create the auction data
         final auctionData = {
-          'name': _textNameController.text,
-          'description': _textDescriptionController.text,
-          'starting_price': int.parse(_textPriceController.text),
-          'current_price': int.parse(_textPriceController.text),
+          'name': name,
+          'description': description,
+          'starting_price': startingPrice, // Use parsed value
+          'current_price': startingPrice, // Use parsed value (or fetch if logic differs)
           'image_url': imageUrl,
-          'duration': int.parse(_textAuctionDurationController.text),
+          'duration': durationSeconds, // Use parsed value
           'end_time': endTime.toIso8601String(),
           'status': 'active',
-          'created_at': DateTime.now().toIso8601String(),
+          // 'created_at' and 'seller_id' should ideally be handled by db defaults/policies
         };
 
         print('Inserting auction data: $auctionData'); // Debug print
 
         // Insert auction into Supabase database
+        // Assumes RLS policy allows insert and sets seller_id=auth.uid()
         final response = await supabase
             .from('auctions')
             .insert(auctionData)
-            .select()
-            .single();
+            .select() // Select the inserted row to get the ID
+            .single(); // Expect exactly one row
 
         print('Database response: $response'); // Debug print
 
-        // Create AuctionProduct with the ID from the response
+        // Ensure response is not null and contains an ID
+        if (response == null || response['id'] == null) {
+           throw Exception('Failed to create auction: No ID returned from database.');
+        }
+
+        // Create AuctionProduct with the ID from the response (Assuming ID is UUID/String)
         final auctionProduct = AuctionProduct(
-          id: response['id'] as String,
-          name: _textNameController.text,
-          description: _textDescriptionController.text,
-          price: int.parse(_textPriceController.text),
-          image: _image!,
-          auctionDuration: int.parse(_textAuctionDurationController.text),
+          id: response['id'] as String, // Make sure AuctionProduct expects String ID
+          name: name,
+          description: description,
+          price: startingPrice, // Use parsed value
+          image: _image!, // Keep local image for potential immediate display
+          auctionDuration: durationSeconds, // Use parsed value
         );
 
         // Dismiss loading indicator
         Navigator.pop(context);
-        
+
         setState(() {
           _auctionProducts.add(auctionProduct);
           _remainingTime = auctionProduct.auctionDuration;
-          _image = null;
+          _image = null; // Clear selected image
           _textNameController.clear();
           _textDescriptionController.clear();
           _textPriceController.clear();
           _textAuctionDurationController.clear();
         });
-        
-        _startAuctionTimer();
+
+        _startAuctionTimer(); // Start timer for the newly added auction
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Auction created successfully!')),
@@ -292,14 +321,24 @@ class _PostAuctionPageState extends State<PostAuctionPage> with AuthStateMixin {
         if (Navigator.canPop(context)) {
           Navigator.pop(context);
         }
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error creating auction: $error')),
+          // Provide a more user-friendly error
+          SnackBar(content: Text('Error creating auction: ${error.toString()}')),
         );
       }
     } else {
+      // More specific feedback
+      String errorMessage = 'Please fill in all fields correctly.';
+      if (_image == null) {
+        errorMessage = 'Please select an image.';
+      } else if (startingPrice == null) {
+         errorMessage = 'Please enter a valid number for the price.';
+      } else if (durationSeconds == null) {
+         errorMessage = 'Please enter a valid number for the duration.';
+      }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Please fill in all fields and select an image')),
+        SnackBar(content: Text(errorMessage)),
       );
     }
   }

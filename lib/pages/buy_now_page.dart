@@ -6,7 +6,25 @@ class BuyNowPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Text("buy now"),
+      appBar: AppBar(
+        title: Text('Buy Now'),
+        ),
+      body: ListView(
+        children: [
+          SizedBox(height: 20),
+          Text(
+            'Buy Now',
+            style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
+            ),
+            SizedBox(height: 20),
+            Text(
+              
+              'Product Name',
+              style: TextStyle(fontSize: 20),
+              ),
+              SizedBox(height: 20),
+        ]
+      ),
     );
   }
 }
