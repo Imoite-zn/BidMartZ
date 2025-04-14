@@ -16,6 +16,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:ecomm_site/auth/auth_provider.dart';
 import 'package:ecomm_site/pages/auth/login_page.dart';
 import 'package:ecomm_site/pages/auth/signup_page.dart';
+import 'package:ecomm_site/providers/auction_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -34,6 +35,7 @@ void main() async {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => Shop()),
+        ChangeNotifierProvider(create: (_) => AuctionProvider()),
       ],
       child: const MyApp(),
     ),

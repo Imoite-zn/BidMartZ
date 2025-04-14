@@ -8,9 +8,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:ecomm_site/auth/auth_state.dart';
 import 'dart:ui' as ui;
-// import 'dart:convert';
-// import 'package:image/image.dart' as img;
-// import 'package:path_provider/path_provider.dart';
+import 'package:ecomm_site/providers/auction_provider.dart';
+import 'package:provider/provider.dart';
+import 'package:image/image.dart' as img; // Import image package
+import 'package:path_provider/path_provider.dart'; // Import path_provider
+import 'package:path/path.dart' as p; // For path manipulation
 
 // Modify the PostProductPage widget to include the auction timer
 class PostAuctionPage extends StatefulWidget {
@@ -27,43 +29,11 @@ class _PostAuctionPageState extends State<PostAuctionPage> with AuthStateMixin {
   final _textAuctionDurationController = TextEditingController();
   File? _image;
   String _result = '';
-  List<AuctionProduct> _auctionProducts = [];
   Timer? _timer;
   int _remainingTime = 0;
   final supabase = Supabase.instance.client;
-
-  Future<File> _processImage(File imageFile) async {
-    try {
-      // Create a new ImagePicker instance
-      final picker = ImagePicker();
-      
-      // Create XFile from the original file
-      final XFile originalXFile = XFile(imageFile.path);
-      
-      // Get the image dimensions
-      final decodedImage = await decodeImageFromList(await imageFile.readAsBytes());
-      
-      // Only resize if the image is larger than 700x700
-      if (decodedImage.width > 700 || decodedImage.height > 700) {
-        final XFile? resizedImage = await picker.pickImage(
-          source: ImageSource.camera, // This is a workaround to use the image processor
-          imageQuality: 85,
-          maxWidth: 700,
-          maxHeight: 700,
-          preferredCameraDevice: CameraDevice.rear,
-        );
-        
-        if (resizedImage != null) {
-          return File(resizedImage.path);
-        }
-      }
-      
-      return imageFile;
-    } catch (error) {
-      print('Error processing image: $error');
-      return imageFile;
-    }
-  }
+  final int _minImageSize = 500;
+  final int _targetImageSize = 500;
 
   Future<void> _pickImage() async {
     try {
@@ -72,63 +42,115 @@ class _PostAuctionPageState extends State<PostAuctionPage> with AuthStateMixin {
         source: ImageSource.gallery,
       );
 
-      if (pickedFile != null) {
-        // Show loading indicator
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (BuildContext context) {
-            return Center(child: CircularProgressIndicator());
-          },
-        );
+      if (pickedFile == null) return; // User cancelled picker
 
-        final File imageFile = File(pickedFile.path);
+      final File originalImageFile = File(pickedFile.path);
+      final imageBytes = await originalImageFile.readAsBytes();
+      final decodedImage = img.decodeImage(imageBytes);
 
-        // Hide loading indicator *before* async gap for check/setState
-        Navigator.pop(context); 
-
-        // Check if square (Optional - Consider removing if not essential)
-        final bool isSquare = await _checkIfSquare(imageFile);
-        if (!isSquare && mounted) {
-           // Show dialog correctly *outside* setState
-           showDialog(
-             context: context,
-             builder: (context) => AlertDialog(
-               title: Text('Image Not Square'),
-               content: Text('The selected image is not square. Please choose a square image.'),
-               actions: [
-                 TextButton(onPressed: () => Navigator.pop(context), child: Text('OK')),
-               ],
-             ),
-           );
-           return; // Stop processing if not square and check is enforced
-        }
-
-        setState(() {
-          _image = imageFile;
-          _result = ''; // Clear previous results/errors if needed
-        });
-
+      if (decodedImage == null) {
+        throw Exception('Could not decode image.');
       }
+
+      // 1. Check Minimum Dimensions
+      if (decodedImage.width < _minImageSize || decodedImage.height < _minImageSize) {
+        // ignore: use_build_context_synchronously
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: Text('Image Too Small'),
+            content: Text('Please select an image that is at least $_minImageSize x $_minImageSize pixels.'),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context), child: Text('OK')),
+            ],
+          ),
+        );
+        return; // Stop processing
+      }
+
+      // 2. Resize if necessary (show loading indicator)
+      // ignore: use_build_context_synchronously
+      showDialog(
+        context: context, // Use context available before async gap
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return const Center(child: Column(
+             mainAxisSize: MainAxisSize.min,
+             children: [
+               CircularProgressIndicator(),
+               SizedBox(height: 10), 
+               Text("Processing image...")
+            ]
+          ));
+        },
+      );
+
+      File finalImageFile; 
+      try {
+          finalImageFile = await _resizeImage(originalImageFile);
+      } catch (e) {
+           print("Error resizing image: $e");
+           // ignore: use_build_context_synchronously
+           Navigator.pop(context); // Dismiss loading dialog
+           // ignore: use_build_context_synchronously
+           ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Error processing image: ${e.toString()}')),
+           );
+           return;
+      }
+
+      // ignore: use_build_context_synchronously
+      Navigator.pop(context); // Dismiss loading dialog
+
+      // 3. Update State with the final (possibly resized) image
+      setState(() {
+        _image = finalImageFile;
+        _result = ''; // Clear previous errors
+      });
+
     } catch (error) {
-      // Hide loading indicator if showing
+      // Hide loading indicator if it's somehow still showing
       if (Navigator.canPop(context)) {
         Navigator.pop(context);
       }
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error picking image: ${error.toString()}')),
+        SnackBar(content: Text('Error picking/processing image: ${error.toString()}')),
       );
     }
   }
 
-  Future<bool> _checkIfSquare(File image) async {
-    try {
-       final decodedImage = await decodeImageFromList(image.readAsBytesSync());
-       return decodedImage.width == decodedImage.height;
-    } catch (e) {
-       print("Error checking image dimensions: $e");
-       return false; // Assume not square or error occurred
+  // New function to resize image to a 500x500 square
+  Future<File> _resizeImage(File originalFile) async {
+    final imageBytes = await originalFile.readAsBytes();
+    final originalImage = img.decodeImage(imageBytes);
+
+    if (originalImage == null) {
+      throw Exception('Could not decode image for resizing.');
     }
+
+    // Resize and crop to a square
+    img.Image resizedImage = img.copyResizeCropSquare(originalImage, size: _targetImageSize);
+
+    // Get temporary directory
+    final tempDir = await getTemporaryDirectory();
+    final String fileExtension = p.extension(originalFile.path).toLowerCase();
+    final String tempPath = p.join(tempDir.path, '${DateTime.now().millisecondsSinceEpoch}_resized$fileExtension');
+
+    // Encode based on original extension (default to jpg)
+    List<int> encodedBytes;
+    if (fileExtension == '.png') {
+       encodedBytes = img.encodePng(resizedImage);
+    } else {
+       // Default to JPG with quality
+       encodedBytes = img.encodeJpg(resizedImage, quality: 85);
+    }
+
+    // Write the bytes to the temporary file
+    File tempFile = File(tempPath);
+    await tempFile.writeAsBytes(encodedBytes);
+
+    print('Resized image saved to temporary path: ${tempFile.path}');
+    return tempFile;
   }
 
   Future<String?> _uploadImageToSupabase(File imageFile) async {
@@ -137,7 +159,6 @@ class _PostAuctionPageState extends State<PostAuctionPage> with AuthStateMixin {
       final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExtension';
       final filePath = 'auction_images/$fileName';
 
-      // Upload the file to Supabase Storage
       await supabase
           .storage
           .from('auction_images')
@@ -146,44 +167,15 @@ class _PostAuctionPageState extends State<PostAuctionPage> with AuthStateMixin {
             upsert: false
           ));
 
-      // Get the public URL of the uploaded image
       final String publicUrl = supabase
           .storage
           .from('auction_images')
           .getPublicUrl(filePath);
-
-      // Show success alert
-      if (context.mounted) {
-        await showDialog(
-          context: context,
-          builder: (BuildContext context) {
-            return AlertDialog(
-              title: Row(
-                children: [
-                  Icon(Icons.check_circle, color: Colors.green),
-                  SizedBox(width: 10),
-                  Text('Success'),
-                ],
-              ),
-              content: Text('Image has been successfully uploaded!'),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                  },
-                  child: Text('OK'),
-                ),
-              ],
-            );
-          },
-        );
-      }
-
+          
       return publicUrl;
+
     } catch (error) {
       print('Error uploading image: $error');
-      
-      // Show error alert
       if (context.mounted) {
         await showDialog(
           context: context,
@@ -209,7 +201,6 @@ class _PostAuctionPageState extends State<PostAuctionPage> with AuthStateMixin {
           },
         );
       }
-      
       return null;
     }
   }
@@ -257,7 +248,6 @@ class _PostAuctionPageState extends State<PostAuctionPage> with AuthStateMixin {
           Duration(seconds: durationSeconds) // Use parsed value
         );
 
-        // Create the auction data
         final auctionData = {
           'name': name,
           'description': description,
@@ -267,7 +257,7 @@ class _PostAuctionPageState extends State<PostAuctionPage> with AuthStateMixin {
           'duration': durationSeconds, // Use parsed value
           'end_time': endTime.toIso8601String(),
           'status': 'active',
-          // 'created_at' and 'seller_id' should ideally be handled by db defaults/policies
+          'seller_id': supabase.auth.currentUser!.id, // Ensure seller_id is included if not default
         };
 
         print('Inserting auction data: $auctionData'); // Debug print
@@ -287,31 +277,31 @@ class _PostAuctionPageState extends State<PostAuctionPage> with AuthStateMixin {
            throw Exception('Failed to create auction: No ID returned from database.');
         }
 
-        // Create AuctionProduct with the ID from the response (Assuming ID is UUID/String)
-        final auctionProduct = AuctionProduct(
-          id: response['id'] as String, // Make sure AuctionProduct expects String ID
-          name: name,
-          description: description,
-          price: startingPrice, // Use parsed value
-          image: _image!, // Keep local image for potential immediate display
-          auctionDuration: durationSeconds, // Use parsed value
-        );
+        // Create AuctionProduct from the response data using the factory
+        final newAuction = AuctionProduct.fromJson(response as Map<String, dynamic>); 
+
+        // Add the new auction to the provider
+        // ignore: use_build_context_synchronously
+        Provider.of<AuctionProvider>(context, listen: false).addAuctionLocally(newAuction);
 
         // Dismiss loading indicator
+        // ignore: use_build_context_synchronously
         Navigator.pop(context);
 
         setState(() {
-          _auctionProducts.add(auctionProduct);
-          _remainingTime = auctionProduct.auctionDuration;
-          _image = null; // Clear selected image
+          // Clear form fields, no need to manage local list or timer here
+          _image = null; 
           _textNameController.clear();
           _textDescriptionController.clear();
           _textPriceController.clear();
           _textAuctionDurationController.clear();
+          _remainingTime = 0; // Reset local timer display if any
+          _timer?.cancel();  // Cancel local timer
         });
 
-        _startAuctionTimer(); // Start timer for the newly added auction
+        // No need to call _startAuctionTimer here, LiveAuctionPage will handle display
 
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Auction created successfully!')),
         );
@@ -343,42 +333,10 @@ class _PostAuctionPageState extends State<PostAuctionPage> with AuthStateMixin {
     }
   }
 
-  void _startAuctionTimer() {
-    _timer?.cancel();
-    
-    if (_auctionProducts.isNotEmpty) {
-      _timer = Timer.periodic(Duration(seconds: 1), (timer) {
-        setState(() {
-          if (_remainingTime > 0) {
-            _remainingTime--;
-          } else {
-            _timer?.cancel();
-            _updateAuctionStatus();
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Auction has ended!')),
-            );
-          }
-        });
-      });
-    }
-  }
-
-  Future<void> _updateAuctionStatus() async {
-    try {
-      if (_auctionProducts.isNotEmpty) {
-        await supabase
-            .from('auctions')
-            .update({'status': 'ended'})
-            .eq('id', _auctionProducts.last.id);
-      }
-    } catch (error) {
-      print('Error updating auction status: $error');
-    }
-  }
-
   @override
   void dispose() {
-    _timer?.cancel();
+    // Cancel timer if it's still running
+    _timer?.cancel(); 
     _textNameController.dispose();
     _textDescriptionController.dispose();
     _textPriceController.dispose();
@@ -403,16 +361,28 @@ class _PostAuctionPageState extends State<PostAuctionPage> with AuthStateMixin {
             Container(
               height: 250,
               width: double.infinity,
-              color: Theme.of(context).colorScheme.primary,
+              color: _image == null ? Theme.of(context).colorScheme.primary : Colors.grey[300],
               margin: EdgeInsets.all(10),
-              child: IconButton(
-                onPressed: _pickImage,
-                icon: Icon(
-                  Icons.add_a_photo_rounded,
-                  size: 40,
-                ),
-              ),
+              child: _image != null
+                  ? Image.file( // Display the selected (potentially resized) image
+                      _image!, 
+                      fit: BoxFit.contain, // Use contain to see the whole square
+                    )
+                  : IconButton( // Show button only if no image
+                      onPressed: _pickImage,
+                      icon: Icon(
+                        Icons.add_a_photo_rounded,
+                        size: 40,
+                        color: _image == null ? null : Colors.black54,
+                      ),
+                    ),
             ),
+            if (_image != null)
+              TextButton.icon(
+                icon: Icon(Icons.edit), 
+                label: Text("Change Image"),
+                onPressed: _pickImage,
+              ),
             Center(
               child: Container(
                 width: 400,
@@ -493,10 +463,6 @@ class _PostAuctionPageState extends State<PostAuctionPage> with AuthStateMixin {
             MyButton(
               onTap: _addAuctionProduct,
               child: Text("Add Auction Product"),
-            ),
-            MyButton(
-              onTap: _startAuctionTimer,
-              child: Text("Start Auction Timer"),
             ),
             Text(
               'Remaining Time: $_remainingTime seconds',
